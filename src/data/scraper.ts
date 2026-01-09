@@ -23,13 +23,14 @@ export interface DiscoveredIPO {
     rawDateRange?: string;
     profileUrl?: string;
     scrapedSchedule?: { event: string; date: string }[];
+    registrar?: string;
 }
 
 import { type NewsItem, type IPOSchedule } from '../core/types';
 export type { NewsItem };
 
 export class IPODataScraper {
-    private static CORS_PROXY = 'https://corsproxy.io/?';
+    private static CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
     /**
      * Scrapes live IPO data from Chittorgarh.com
@@ -183,13 +184,119 @@ export class IPODataScraper {
     }
 
     /**
-     * Scrapes live IPO data from IPOWatch
+     * Backup Scraper: IPOPremium.in
+     * URL: https://ipopremium.in/ipo-gmp/
+     */
+    static async scrapeIPOPremiumData(): Promise<ScrapedIPOData[]> {
+        try {
+            const url = 'https://ipopremium.in/ipo-gmp/';
+            const proxyUrl = this.CORS_PROXY + encodeURIComponent(url);
+            const response = await axios.get(proxyUrl, { timeout: 12000 });
+            const html = response.data;
+            const scrapedData: ScrapedIPOData[] = [];
+
+            // Extract table rows
+            const tableRegex = /<table[^>]*>(.*?)<\/table>/gs;
+            const tableMatch = tableRegex.exec(html);
+
+            if (tableMatch) {
+                const tbody = tableMatch[1];
+                const rowRegex = /<tr[^>]*>(.*?)<\/tr>/gs;
+                const rows = tbody.matchAll(rowRegex);
+
+                for (const row of rows) {
+                    const content = row[1];
+                    const tds = Array.from(content.matchAll(/<td[^>]*>(.*?)<\/td>/gs)).map(m => {
+                        return m[1].replace(/<[^>]*>/g, '').trim();
+                    });
+
+                    // Typically: [0] Name, [1] Offer Price, [2] GMP, [3] Kostak, [4] Subject
+                    if (tds.length >= 3) {
+                        const name = tds[0].replace(/&amp;/g, '&');
+                        const gmpMatch = tds[2].match(/(\d+)/);
+                        const gmp = gmpMatch ? parseInt(gmpMatch[1]) : 0;
+
+                        if (name) {
+                            scrapedData.push({ name, gmp });
+                        }
+                    }
+                }
+            }
+            console.log(`[IPOPremium] Scraped ${scrapedData.length} IPOs`);
+            return scrapedData;
+        } catch (error) {
+            console.warn('IPOPremium scraping failed:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Backup Scraper: IPOWatch Subscription Status
+     * URL: https://ipowatch.in/ipo-subscription-numbers-status/
+     */
+    static async scrapeIPOWatchSubscription(): Promise<ScrapedIPOData[]> {
+        try {
+            const url = 'https://ipowatch.in/ipo-subscription-numbers-status/';
+            const proxyUrl = this.CORS_PROXY + encodeURIComponent(url);
+            const response = await axios.get(proxyUrl, { timeout: 12000 });
+            const html = response.data;
+            const scrapedData: ScrapedIPOData[] = [];
+
+            const tableRegex = /<table[^>]*>(.*?)<\/table>/gs;
+            const tableMatch = tableRegex.exec(html);
+
+            if (tableMatch) {
+                const tbody = tableMatch[1];
+                const rowRegex = /<tr[^>]*>(.*?)<\/tr>/gs;
+                const rows = tbody.matchAll(rowRegex);
+
+                let rowIndex = 0;
+                for (const row of rows) {
+                    rowIndex++;
+                    if (rowIndex === 1) continue; // Skip Header
+
+                    const content = row[1];
+                    const tds = Array.from(content.matchAll(/<td[^>]*>(.*?)<\/td>/gs)).map(m => {
+                        return m[1].replace(/<[^>]*>/g, '').trim();
+                    });
+
+                    // Expected: [0] Name, [1] QIB, [2] NII, [3] Retail, [4] Total, [5] Date
+                    if (tds.length >= 5) {
+                        const name = tds[0].replace(/&amp;/g, '&');
+
+                        // Parse numbers (handle "2.5x", "2.5", or just "2")
+                        const parseSub = (str: string) => parseFloat(str.replace(/x/i, '').trim()) || 0;
+
+                        const qib = parseSub(tds[1]);
+                        const nii = parseSub(tds[2]);
+                        const retail = parseSub(tds[3]);
+                        const total = parseSub(tds[4]);
+
+                        if (name) {
+                            scrapedData.push({
+                                name,
+                                subscription: { qib, nii, retail, total }
+                            });
+                        }
+                    }
+                }
+            }
+            console.log(`[IPOWatch Sub] Scraped ${scrapedData.length} Subscription stats`);
+            return scrapedData;
+        } catch (error) {
+            console.warn('IPOWatch Subscription scraping failed:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Scrapes live IPO data from IPOWatch (GMP Focus)
      * URL: https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/
      */
     static async scrapeIPOWatchData(): Promise<ScrapedIPOData[]> {
         try {
             const url = 'https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/';
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const proxyUrl = this.CORS_PROXY + encodeURIComponent(url);
 
             const response = await axios.get(proxyUrl, { timeout: 10000 });
             const html = response.data;
@@ -239,21 +346,70 @@ export class IPODataScraper {
     }
 
     /**
-     * Smart data fetcher - tries multiple sources
+     * Smart data fetcher - Hybrid Strategy
+     * Merges GMP from IPOWatch (Reliable) with Subscription from Chittorgarh (Detailed)
      */
     static async fetchLatestData(apiKey?: string): Promise<ScrapedIPOData[]> {
-        // Try API first (if key is available)
+        // 1. Try API first (if key is available)
         if (apiKey) {
             const apiData = await this.fetchFromIPOAlertsAPI(apiKey);
             if (apiData.length > 0) return apiData;
         }
 
-        // Try IPOWatch first (more reliable currently)
-        const ipoWatchData = await this.scrapeIPOWatchData();
-        if (ipoWatchData.length > 0) return ipoWatchData;
+        // 2. Parallel Fetch from BOTH sources
+        // We use Promise.all to fetch them simultaneously for speed
+        let [ipoWatchData, chittorgarhData] = await Promise.all([
+            this.scrapeIPOWatchData(),
+            this.scrapeChittorgarhData()
+        ]);
 
-        // Fallback to Chittorgarh
-        return await this.scrapeChittorgarhData();
+        // --- BACKUP LAYER ---
+        // If IPOWatch fails or returns empty, try IPOPremium
+        if (ipoWatchData.length === 0) {
+            console.log('[Hybrid Scraper] Primary GMP source failed, trying backup (IPOPremium)...');
+            ipoWatchData = await this.scrapeIPOPremiumData();
+        }
+
+        // If Chittorgarh fails (empty subscription data), try IPOWatch Subscription backup
+        if (chittorgarhData.length === 0) {
+            console.log('[Hybrid Scraper] Primary Subscription source failed, trying backup (IPOWatch Sub)...');
+            chittorgarhData = await this.scrapeIPOWatchSubscription();
+        }
+
+        console.log(`[Hybrid Scraper] GMP Source: ${ipoWatchData.length}, Sub Source: ${chittorgarhData.length}`);
+
+        // 3. Intelligent Merge
+        // We use a Map to dedup by normalized name
+        const mergedMap = new Map<string, ScrapedIPOData>();
+
+        const normalize = (name: string) => name.toLowerCase().replace(/ipo/g, '').replace(/[^a-z0-9]/g, '');
+
+        // A. Load Chittorgarh Data First (Base - Good for Subscription)
+        chittorgarhData.forEach(item => {
+            const key = normalize(item.name);
+            mergedMap.set(key, item);
+        });
+
+        // B. Overlay IPOWatch Data (Overlay - Good for GMP)
+        ipoWatchData.forEach(item => {
+            const key = normalize(item.name);
+            const existing = mergedMap.get(key);
+
+            if (existing) {
+                // Merge logic: Update GMP from IPOWatch if it exists (usually fresher)
+                if (item.gmp !== undefined && item.gmp > 0) {
+                    existing.gmp = item.gmp;
+                }
+                // We keep existing.subscription from Chittorgarh (as IPOWatch usually lacks it)
+            } else {
+                // New IPO found only in IPOWatch
+                mergedMap.set(key, item);
+            }
+        });
+
+        const result = Array.from(mergedMap.values());
+        console.log(`[Hybrid Scraper] Merged into ${result.length} unique IPOs`);
+        return result;
     }
 
     /**
@@ -374,6 +530,10 @@ export class IPODataScraper {
                             }
                         }
 
+                        // Extract Registrar
+                        const registrarEvent = timeline.find(e => e.event === 'Registrar');
+                        const registrarName = registrarEvent ? registrarEvent.date : undefined;
+
                         discovered.push({
                             name,
                             symbol: name.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, ''),
@@ -384,7 +544,8 @@ export class IPODataScraper {
                             status,
                             rawDateRange: dateRange,
                             profileUrl: detailUrl,
-                            scrapedSchedule: timeline.length > 0 ? timeline : undefined
+                            scrapedSchedule: timeline.length > 0 ? timeline : undefined,
+                            registrar: registrarName
                         });
                     }
                 }
@@ -443,6 +604,7 @@ export class IPODataScraper {
                 else if (eventRaw.match(/Refunds/i)) eventName = 'Initiation of Refunds';
                 else if (eventRaw.match(/Credit/i)) eventName = 'Credit of Shares to Demat';
                 else if (eventRaw.match(/Listing/i)) eventName = 'IPO Listing Date';
+                else if (eventRaw.match(/Registrar/i)) eventName = 'Registrar'; // Capture Registrar
 
                 if (eventName && dateRaw) {
                     schedule.push({ event: eventName, date: dateRaw });

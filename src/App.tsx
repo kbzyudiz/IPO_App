@@ -44,10 +44,6 @@ function App() {
     useEffect(() => {
         const initApp = async () => {
             try {
-                const { userName, updateProfile } = useAppStore.getState();
-                if (userName !== 'Rahul Sharma') {
-                    updateProfile('Rahul Sharma', 'rahul.sharma@email.com');
-                }
                 await fetchData();
                 await syncMarketData();
                 AutomationService.syncAllotmentStatuses();

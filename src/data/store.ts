@@ -293,7 +293,8 @@ export const useAppStore = create<AppState>()(
                 installDate: state.installDate,
                 isDarkMode: state.isDarkMode,
                 alerts: state.alerts
-            })
+            }),
+            version: 2 // Bumped to force invalidation of old data (missing registrars)
         }
     )
 );
@@ -380,6 +381,8 @@ function detectInsights(old: IPO, updated: IPO): IPOInsight[] {
     return insights;
 }
 
+import { LocalNotifications } from '@capacitor/local-notifications';
+
 /**
  * ALERT DETECTION LOGIC
  * Triggers system-wide notifications for critical market moments
@@ -389,26 +392,15 @@ function detectAlerts(old: IPO, updated: IPO): SmartAlert[] {
     const id = () => Math.random().toString(36).substr(2, 9);
     const timestamp = Date.now();
 
-    // 1. Status Change (High Priority)
+    // 1. Status Change (IPO Opens)
     if (old.status !== updated.status) {
         if (updated.status === 'open') {
             alerts.push({
                 id: id(),
                 ipoId: updated.id,
                 title: 'IPO Open Now! 🚀',
-                message: `${updated.name} is now live for bidding. Don't miss the window.`,
+                message: `${updated.name} is now live for bidding.`,
                 type: 'success',
-                category: 'status_change',
-                timestamp,
-                isRead: false
-            });
-        } else if (updated.status === 'closed') {
-            alerts.push({
-                id: id(),
-                ipoId: updated.id,
-                title: 'IPO Bidding Closed',
-                message: `${updated.name} has officially closed. Check back for allotment soon.`,
-                type: 'info',
                 category: 'status_change',
                 timestamp,
                 isRead: false
@@ -416,15 +408,15 @@ function detectAlerts(old: IPO, updated: IPO): SmartAlert[] {
         }
     }
 
-    // 2. GMP Spike (Warning/Success)
-    if (updated.gmp !== undefined && old.gmp !== undefined) {
-        const diff = updated.gmp - old.gmp;
-        if (diff > 20) {
+    // 2. GMP Explosion (> 10% change)
+    if (updated.gmp && old.gmp) {
+        const percentChange = ((updated.gmp - old.gmp) / old.gmp) * 100;
+        if (percentChange > 10) {
             alerts.push({
                 id: id(),
                 ipoId: updated.id,
-                title: 'GMP Surge Detected! 📈',
-                message: `Strong demand for ${updated.name}! GMP jumped by ₹${diff} in last trade.`,
+                title: 'GMP Explosion! 🔥',
+                message: `${updated.name} GMP jumpped ${percentChange.toFixed(0)}% today!`,
                 type: 'success',
                 category: 'gmp_spike',
                 timestamp,
@@ -433,37 +425,71 @@ function detectAlerts(old: IPO, updated: IPO): SmartAlert[] {
         }
     }
 
-    // 3. Subscription High (Info)
-    if (updated.subscription.total > 50 && old.subscription.total <= 50) {
-        alerts.push({
-            id: id(),
-            ipoId: updated.id,
-            title: 'Massive Demand! ⚡',
-            message: `${updated.name} is now over 50x subscribed. Retail interest is peaking.`,
-            type: 'warning',
-            category: 'status_change',
-            timestamp,
-            isRead: false
-        });
+    // 3. Subscription Spike (Retail > 1x)
+    if (updated.subscription?.retail && old.subscription?.retail) {
+        if (updated.subscription.retail > 1 && old.subscription.retail <= 1) {
+            alerts.push({
+                id: id(),
+                ipoId: updated.id,
+                title: 'Retail Full! ⚡',
+                message: `Retail quota for ${updated.name} is now fully subscribed (>1x).`,
+                type: 'warning',
+                category: 'subscription_spike',
+                timestamp,
+                isRead: false
+            });
+        }
     }
 
-    // 4. Closing Soon (Critical)
+    // 4. Closing Soon (Last Day)
     const endDate = new Date(updated.endDate);
     const now = new Date();
     if (updated.status === 'open' && endDate.toDateString() === now.toDateString()) {
-        const hoursLeft = 17 - now.getHours(); // Assuming 5 PM IST close
+        const hoursLeft = 17 - now.getHours();
+        // Check if we haven't already alerted for this today (handled by store dedup)
         if (hoursLeft > 0 && hoursLeft <= 4) {
             alerts.push({
                 id: id(),
                 ipoId: updated.id,
                 title: 'Closing Soon! ⏳',
-                message: `Final few hours left to apply for ${updated.name}!`,
+                message: `Only ${hoursLeft} hours left to apply for ${updated.name}.`,
                 type: 'critical',
                 category: 'closing_soon',
                 timestamp,
                 isRead: false
             });
         }
+    }
+
+    // 5. Allotment Out
+    // We assume scraper updates 'status' to 'allotment_out' OR we detect a new allotment URL
+    if ((old.status !== 'allotment_out' && updated.status === 'allotment_out')) {
+        alerts.push({
+            id: id(),
+            ipoId: updated.id,
+            title: 'Allotment Out! 🎉',
+            message: `Result for ${updated.name} is declared. Check now!`,
+            type: 'success',
+            category: 'allotment_out',
+            timestamp,
+            isRead: false
+        });
+    }
+
+    // TRIGGER LOCAL NOTIFICATION FOR ALL GENERATED ALERTS
+    if (alerts.length > 0) {
+        LocalNotifications.schedule({
+            notifications: alerts.map(a => ({
+                title: a.title,
+                body: a.message,
+                id: Math.floor(Math.random() * 100000), // Random ID
+                schedule: { at: new Date(Date.now() + 1000) }, // 1 sec delay
+                sound: 'beep.wav',
+                attachments: [],
+                actionTypeId: '',
+                extra: null
+            }))
+        }).catch(err => console.error('Notification Error:', err));
     }
 
     return alerts;

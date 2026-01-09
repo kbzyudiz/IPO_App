@@ -21,7 +21,8 @@ const IPOCard: React.FC<IPOCardProps> = ({ ipo, index = 0, showDetails = true })
         open: { color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', label: 'Open' },
         closed: { color: 'text-rose-400 bg-rose-400/10 border-rose-400/20', label: 'Closed' },
         upcoming: { color: 'text-amber-400 bg-amber-400/10 border-amber-400/20', label: 'Upcoming' },
-        announced: { color: 'text-gray-400 bg-gray-400/10 border-gray-400/20', label: 'Announced' }
+        announced: { color: 'text-gray-400 bg-gray-400/10 border-gray-400/20', label: 'Announced' },
+        allotment_out: { color: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20', label: 'Allotment Out' }
     };
 
     const config = statusConfig[ipo.status] || statusConfig.announced;

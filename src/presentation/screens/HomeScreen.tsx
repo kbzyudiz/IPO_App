@@ -9,7 +9,8 @@ import IPOCard from '../components/IPOCard';
 
 const HomeScreen: React.FC = () => {
     const navigate = useNavigate();
-    const { ipos, isLoading, userName } = useAppStore();
+    const ipos = useAppStore(state => state.ipos);
+    const isLoading = useAppStore(state => state.isLoading);
     const [filter, setFilter] = React.useState<'all' | 'mainboard' | 'sme'>('all');
 
     const hotIpo = [...ipos]
@@ -23,13 +24,6 @@ const HomeScreen: React.FC = () => {
     });
 
     const openIpos = filteredIpos.filter(i => i.status === 'open');
-
-    const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'Good Morning';
-        if (hour < 17) return 'Good Afternoon';
-        return 'Good Evening';
-    };
 
     if (isLoading) return <PremiumLoader message="Preparing your market dashboard..." />;
 
@@ -50,14 +44,14 @@ const HomeScreen: React.FC = () => {
             animate="show"
             className="flex flex-col gap-8 p-6 pt-2 pb-24 bg-[#030305] min-h-screen"
         >
-            <header className="flex justify-between items-end px-1 mt-4">
+            <header className="flex justify-between items-center px-1 mt-4 mb-2">
                 <div>
-                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-1 opacity-60">
-                        {getGreeting()},
-                    </p>
-                    <h1 className="text-3xl font-black tracking-tighter text-white">
-                        {userName.split(' ')[0]} <span className="text-indigo-500">.</span>
+                    <h1 className="text-2xl font-black text-white leading-tight tracking-tight">
+                        Market Overview
                     </h1>
+                    <p className="text-gray-400 text-[10px] font-bold tracking-widest uppercase mt-0.5 opacity-60">
+                        Live IPO Updates & GMO
+                    </p>
                 </div>
                 <AlertCenter />
             </header>

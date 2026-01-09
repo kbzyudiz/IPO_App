@@ -25,7 +25,8 @@ const DetailScreen: React.FC = () => {
         open: { color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', label: 'Open' },
         closed: { color: 'text-rose-400 bg-rose-400/10 border-rose-400/20', label: 'Closed' },
         upcoming: { color: 'text-amber-400 bg-amber-400/10 border-amber-400/20', label: 'Upcoming' },
-        announced: { color: 'text-gray-400 bg-gray-400/10 border-gray-400/20', label: 'Announced' }
+        announced: { color: 'text-gray-400 bg-gray-400/10 border-gray-400/20', label: 'Announced' },
+        allotment_out: { color: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20', label: 'Allotment Out' }
     };
 
     const config = statusConfig[ipo.status] || statusConfig.announced;
@@ -150,10 +151,10 @@ const DetailScreen: React.FC = () => {
                                     <div key={idx} className="relative group">
                                         {/* Timeline Dot */}
                                         <div className={`absolute -left-[29px] top-1.5 transition-all duration-300 ${status === 'today'
-                                                ? 'w-3 h-3 bg-emerald-500 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse'
-                                                : status === 'past'
-                                                    ? 'w-2.5 h-2.5 bg-indigo-500 border-indigo-500' // Completed
-                                                    : 'w-2.5 h-2.5 bg-[#030305] border-2 border-white/20' // Future
+                                            ? 'w-3 h-3 bg-emerald-500 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse'
+                                            : status === 'past'
+                                                ? 'w-2.5 h-2.5 bg-indigo-500 border-indigo-500' // Completed
+                                                : 'w-2.5 h-2.5 bg-[#030305] border-2 border-white/20' // Future
                                             } rounded-full z-10`} />
 
                                         {/* Content */}

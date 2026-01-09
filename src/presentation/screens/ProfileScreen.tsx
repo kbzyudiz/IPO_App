@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Shield, FileText, ChevronRight, LogOut, X, HelpCircle } from 'lucide-react';
 import { useAppStore } from '../../data/store';
@@ -11,9 +11,21 @@ export const ProfileScreen = () => {
     const [editEmail, setEditEmail] = useState(userEmail);
     const [editPhone, setEditPhone] = useState('');
 
+    // Sync local state when modal opens or store updates
+    useEffect(() => {
+        if (editProfileModal) {
+            setEditName(userName);
+            setEditEmail(userEmail);
+        }
+    }, [editProfileModal, userName, userEmail]);
+
     const handleSaveProfile = () => {
+        console.log('Saving Profile:', editName, editEmail);
         updateProfile(editName, editEmail);
-        setEditProfileModal(false);
+        // Small delay to ensure state propagates/animation feels natural
+        setTimeout(() => {
+            setEditProfileModal(false);
+        }, 100);
     };
 
     const MenuLink = ({ icon: Icon, title, subtitle, onClick }: any) => (

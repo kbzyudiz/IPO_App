@@ -22,7 +22,8 @@ export class IPOService {
             listingDate: '16 Jan 2026',
             gmp: 11,
             status: 'upcoming', // Based on Jan 9 start
-            subscription: { total: 0, retail: 0, qib: 0, nii: 0 }
+            subscription: { total: 0, retail: 0, qib: 0, nii: 0 },
+            registrar: 'Link Intime India Pvt Ltd'
         },
         {
             id: 'gabion-tech',
@@ -40,7 +41,8 @@ export class IPOService {
             listingDate: '13 Jan 2026',
             gmp: 30,
             status: 'open',
-            subscription: { total: 12.4, retail: 15.8, qib: 5.2, nii: 18.5 }
+            subscription: { total: 12.4, retail: 15.8, qib: 5.2, nii: 18.5 },
+            registrar: 'Bigshare Services Pvt Ltd'
         },
         {
             id: 'yajur-fibres',
@@ -58,7 +60,8 @@ export class IPOService {
             listingDate: '14 Jan 2026',
             gmp: 60,
             status: 'open',
-            subscription: { total: 2.1, retail: 4.5, qib: 0, nii: 1.2 }
+            subscription: { total: 2.1, retail: 4.5, qib: 0, nii: 1.2 },
+            registrar: 'KFin Technologies Ltd'
         },
         {
             id: 'future-energy',
@@ -76,7 +79,8 @@ export class IPOService {
             listingDate: '13 Jan 2026',
             gmp: 85,
             status: 'open',
-            subscription: { total: 4.5, retail: 6.2, qib: 1.8, nii: 3.9 }
+            subscription: { total: 4.5, retail: 6.2, qib: 1.8, nii: 3.9 },
+            registrar: 'Link Intime India Pvt Ltd'
         },
         {
             id: 'victory-electric',
@@ -94,7 +98,8 @@ export class IPOService {
             listingDate: '14 Jan 2026',
             gmp: 5,
             status: 'open',
-            subscription: { total: 0, retail: 0, qib: 0, nii: 0 }
+            subscription: { total: 0, retail: 0, qib: 0, nii: 0 },
+            registrar: 'Maashitla Securities Pvt Ltd'
         },
         {
             id: 'nova-tech',
@@ -112,7 +117,8 @@ export class IPOService {
             listingDate: '23 Jan 2026',
             gmp: 120,
             status: 'upcoming',
-            subscription: { total: 0, retail: 0, qib: 0, nii: 0 }
+            subscription: { total: 0, retail: 0, qib: 0, nii: 0 },
+            registrar: 'Link Intime India Pvt Ltd'
         },
         {
             id: 'modern-diag',
@@ -130,7 +136,8 @@ export class IPOService {
             listingDate: '07 Jan 2026',
             status: 'closed',
             gmp: 14,
-            subscription: { total: 55.4, retail: 62.1, qib: 12.8, nii: 88.5 }
+            subscription: { total: 55.4, retail: 62.1, qib: 12.8, nii: 88.5 },
+            registrar: 'Cameo Corporate Services Ltd'
         },
         {
             id: 'shyam-dhani',
@@ -148,7 +155,8 @@ export class IPOService {
             listingDate: '30 Dec 2025',
             gmp: 72,
             status: 'closed',
-            subscription: { total: 204.96, retail: 185.2, qib: 45.3, nii: 412.5 }
+            subscription: { total: 204.96, retail: 185.2, qib: 45.3, nii: 412.5 },
+            registrar: 'Skyline Financial Services Pvt Ltd'
         }
     ];
 
@@ -191,11 +199,27 @@ export class IPOService {
             if (listingEvent) listingDate = listingEvent.date;
         }
 
+        // DYNAMIC STATUS UPDATE: Check for Allotment Out
+        let finalStatus = status;
+        try {
+            const allotmentEvent = schedule.find(e => e.event.includes('Allotment'));
+            if (allotmentEvent && allotmentEvent.date !== 'TBA') {
+                const allotmentDate = new Date(allotmentEvent.date);
+                const listingDt = new Date(listingDate);
+                const now = new Date();
+
+                // If today is past allotment date but before listing, and status was closed
+                if (now >= allotmentDate && now < listingDt && (status === 'closed' || status === 'upcoming')) {
+                    finalStatus = 'allotment_out';
+                }
+            }
+        } catch (e) { /* ignore date parse errors */ }
+
         return {
             id: item.id || Math.random().toString(36).substr(2, 9),
             name: item.name,
             symbol: item.symbol || 'SYMBOL',
-            status: status,
+            status: finalStatus,
             type: item.type === 'SME' ? 'SME' : 'Mainboard',
             sector: item.sector || (seed % 2 === 0 ? 'Technology' : 'Finance'),
             priceRange: item.priceRange || '0-0',
@@ -224,7 +248,8 @@ export class IPOService {
                 holdingPre: '98.5%',
                 holdingPost: '72.4%',
                 names: ['Rajesh Gupta', 'Suresh Kumar']
-            }
+            },
+            registrar: item.registrar
         };
     }
 

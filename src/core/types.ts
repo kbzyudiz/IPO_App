@@ -1,4 +1,4 @@
-export type IPOStatus = 'open' | 'upcoming' | 'announced' | 'closed';
+export type IPOStatus = 'open' | 'upcoming' | 'announced' | 'closed' | 'allotment_out';
 
 export interface IPOSchedule {
     event: string;
@@ -80,7 +80,7 @@ export interface SmartAlert {
     title: string;
     message: string;
     type: 'critical' | 'info' | 'success' | 'warning';
-    category: 'new_ipo' | 'gmp_spike' | 'status_change' | 'closing_soon' | 'news';
+    category: 'new_ipo' | 'gmp_spike' | 'status_change' | 'closing_soon' | 'news' | 'subscription_spike' | 'allotment_out';
     timestamp: number;
     ipoId?: string;
     isRead: boolean;

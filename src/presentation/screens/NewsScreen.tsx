@@ -33,9 +33,10 @@ export const NewsScreen = () => {
     }, []);
 
     // Filter logic if needed
+    // Filter logic
     const filteredNews = activeTab === 'ALL'
         ? news
-        : news; // Currently RSS is mixed. Could filter by item.title string match later.
+        : news.filter(item => item.category === activeTab);
 
     const topStory = filteredNews[0];
     const otherStories = filteredNews.slice(1);

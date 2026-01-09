@@ -10,6 +10,7 @@ export interface MarketNewsItem {
     source: string;
     sentiment?: 'bullish' | 'bearish' | 'neutral';
     imageUrl?: string;
+    category?: 'MAINBOARD' | 'SME' | 'MARKET';
 }
 
 export class NewsService {
@@ -28,9 +29,9 @@ export class NewsService {
     static async fetchAllNews(): Promise<MarketNewsItem[]> {
         try {
             const [ipoNews, marketNews, smeNews] = await Promise.all([
-                this.fetchFeed(this.FEEDS.IPO),
-                this.fetchFeed(this.FEEDS.MARKET),
-                this.fetchFeed(this.FEEDS.SME)
+                this.fetchFeed(this.FEEDS.IPO, 'MAINBOARD'),
+                this.fetchFeed(this.FEEDS.MARKET, 'MARKET'),
+                this.fetchFeed(this.FEEDS.SME, 'SME')
             ]);
 
             // Merge and sort by date (newest first)
@@ -49,7 +50,7 @@ export class NewsService {
         }
     }
 
-    private static async fetchFeed(feedUrl: string): Promise<MarketNewsItem[]> {
+    private static async fetchFeed(feedUrl: string, category: 'MAINBOARD' | 'SME' | 'MARKET'): Promise<MarketNewsItem[]> {
         try {
             let xmlData = '';
 
@@ -88,7 +89,8 @@ export class NewsService {
                 pubDate: this.getText(item.pubDate) || new Date().toISOString(),
                 source: this.getText(item.source) || 'Market News',
                 imageUrl: this.extractImage(this.getText(item.description)),
-                sentiment: this.analyzeSentiment(this.getText(item.title) || '')
+                sentiment: this.analyzeSentiment(this.getText(item.title) || ''),
+                category: category
             }));
         } catch (e) {
             console.warn(`Error fetching feed ${feedUrl}`, e);
