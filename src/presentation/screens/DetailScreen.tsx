@@ -125,14 +125,63 @@ const DetailScreen: React.FC = () => {
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-6 flex items-center gap-2">
                             <Calendar size={12} /> Timeline
                         </h3>
-                        <div className="relative border-l border-white/10 ml-1.5 pl-6 space-y-6">
-                            {ipo.schedule && ipo.schedule.map((item, idx) => (
-                                <div key={idx} className="relative">
-                                    <div className={`absolute -left-[29px] top-1 w-2.5 h-2.5 rounded-full border-2 ${new Date() > new Date(item.date) ? 'bg-indigo-500 border-indigo-500' : 'bg-[#030305] border-white/20'}`} />
-                                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{item.event}</p>
-                                    <p className="text-sm font-black text-white tracking-wide">{item.date}</p>
-                                </div>
-                            ))}
+                        <div className="relative border-l border-white/10 ml-1.5 pl-6 space-y-8">
+                            {ipo.schedule && ipo.schedule.map((item, idx) => {
+                                // Robust date parsing
+                                const parseDate = (d: string) => {
+                                    if (!d || d === 'TBA') return null;
+                                    const parsed = new Date(d);
+                                    return isNaN(parsed.getTime()) ? null : parsed;
+                                };
+
+                                const eventDate = parseDate(item.date);
+                                const today = new Date();
+
+                                // Normalized comparisons (ignoring time)
+                                today.setHours(0, 0, 0, 0);
+                                if (eventDate) eventDate.setHours(0, 0, 0, 0);
+
+                                let status = 'future';
+                                if (!eventDate) status = 'future';
+                                else if (eventDate < today) status = 'past';
+                                else if (eventDate.getTime() === today.getTime()) status = 'today';
+
+                                return (
+                                    <div key={idx} className="relative group">
+                                        {/* Timeline Dot */}
+                                        <div className={`absolute -left-[29px] top-1.5 transition-all duration-300 ${status === 'today'
+                                                ? 'w-3 h-3 bg-emerald-500 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse'
+                                                : status === 'past'
+                                                    ? 'w-2.5 h-2.5 bg-indigo-500 border-indigo-500' // Completed
+                                                    : 'w-2.5 h-2.5 bg-[#030305] border-2 border-white/20' // Future
+                                            } rounded-full z-10`} />
+
+                                        {/* Content */}
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <p className={`text-[10px] font-black uppercase tracking-widest ${status === 'today' ? 'text-emerald-400' : 'text-gray-500'
+                                                        }`}>
+                                                        {item.event}
+                                                    </p>
+                                                    {status === 'today' && (
+                                                        <span className="px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded text-[8px] font-black text-emerald-400 uppercase tracking-wider animate-pulse">
+                                                            Live
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className={`text-sm font-black tracking-wide ${status === 'today' ? 'text-white' : 'text-gray-300'
+                                                    }`}>
+                                                    {item.date}
+                                                </p>
+                                            </div>
+
+                                            {/* Status Badge (Right Side) */}
+                                            {status === 'past' && <div className="text-[9px] text-indigo-400 font-bold opacity-60">DONE</div>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                         <p className="mt-8 text-xs text-gray-400 font-bold leading-relaxed border-t border-white/5 pt-4">
                             {ipo.name} ({ipo.sector}), Size: ₹{ipo.issueSize}, Ret. Quota: 35%. {ipo.type} issue.

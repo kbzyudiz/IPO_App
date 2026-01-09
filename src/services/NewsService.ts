@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 export interface MarketNewsItem {
     id: string;
@@ -50,17 +51,27 @@ export class NewsService {
 
     private static async fetchFeed(feedUrl: string): Promise<MarketNewsItem[]> {
         try {
-            // Fetch via Proxy to bypass CORS
-            const response = await axios.get(this.PROXY + encodeURIComponent(feedUrl));
+            let xmlData = '';
+
+            // NATIVE: Bypass CORS using Native HTTP
+            if (Capacitor.isNativePlatform()) {
+                const response = await CapacitorHttp.get({
+                    url: feedUrl, // Direct URL, no proxy needed natively
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                xmlData = response.data;
+            }
+            // WEB: Use Proxy
+            else {
+                const response = await axios.get(this.PROXY + encodeURIComponent(feedUrl));
+                xmlData = response.data && response.data.contents ? response.data.contents : response.data;
+            }
 
             // Parse XML
             const parser = new XMLParser({
                 ignoreAttributes: false,
                 attributeNamePrefix: "@_"
             });
-
-            // Handle both raw string and JSON-wrapped responses gracefully
-            const xmlData = response.data && response.data.contents ? response.data.contents : response.data;
 
             const result = parser.parse(xmlData);
 

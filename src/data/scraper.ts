@@ -20,9 +20,12 @@ export interface DiscoveredIPO {
     startDate: string;
     endDate: string;
     status: 'open' | 'upcoming' | 'closed';
+    rawDateRange?: string;
+    profileUrl?: string;
+    scrapedSchedule?: { event: string; date: string }[];
 }
 
-import { type NewsItem } from '../core/types';
+import { type NewsItem, type IPOSchedule } from '../core/types';
 export type { NewsItem };
 
 export class IPODataScraper {
@@ -345,6 +348,32 @@ export class IPODataScraper {
                         if (now >= sDate && now <= eDate) status = 'open';
                         else if (now > eDate) status = 'closed';
 
+
+                        // Extract URL
+                        // tds[0] contains the link: <a href="https://ipowatch.in/..." ...>Name</a>
+                        // We need to parse it from the raw `content` of the row, not the stripped `tds`.
+                        // The columns in `tds` are stripped of tags.
+                        // Let's re-extract the first TD's inner HTML from `content`.
+                        const firstTdMatch = content.match(/<td[^>]*>(.*?)<\/td>/s); // First TD
+                        let detailUrl = '';
+                        if (firstTdMatch) {
+                            const linkMatch = firstTdMatch[1].match(/href="([^"]+)"/);
+                            if (linkMatch) detailUrl = linkMatch[1];
+                        }
+
+                        let timeline: IPOSchedule[] = [];
+
+                        // IF the IPO is OPEN or UPCOMING, let's fetch the detailed schedule
+                        // We limit this to active ones to save bandwidth/time
+                        if ((status === 'open' || status === 'upcoming') && detailUrl) {
+                            try {
+                                console.log(`[Detailed Scraping] Fetching schedule for ${name}...`);
+                                timeline = await this.scrapeDetailedSchedule(detailUrl);
+                            } catch (e) {
+                                console.warn(`Failed to scrape details for ${name}`, e);
+                            }
+                        }
+
                         discovered.push({
                             name,
                             symbol: name.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, ''),
@@ -352,7 +381,10 @@ export class IPODataScraper {
                             priceRange,
                             startDate,
                             endDate,
-                            status
+                            status,
+                            rawDateRange: dateRange,
+                            profileUrl: detailUrl,
+                            scrapedSchedule: timeline.length > 0 ? timeline : undefined
                         });
                     }
                 }
@@ -380,6 +412,46 @@ export class IPODataScraper {
             console.error('Discovery failed:', error);
             return [];
         }
+    }
+
+    /**
+     * Visits the specific IPO detail page to scrape the "Tentative Timetable"
+     */
+    private static async scrapeDetailedSchedule(url: string): Promise<IPOSchedule[]> {
+        const schedule: IPOSchedule[] = [];
+        try {
+            // Basic IPOWatch Detail Page Scraper
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const response = await axios.get(proxyUrl, { timeout: 8000 });
+            const html = response.data;
+
+            // Look for the table with Dates
+            // The structure is usually <tr><td>Event</td><td>Date</td></tr>
+            // We search generically for rows to be robust
+            const rowRegex = /<tr[^>]*>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>/gs;
+            const matches = html.matchAll(rowRegex);
+
+            for (const match of matches) {
+                const eventRaw = match[1].replace(/<[^>]*>/g, '').trim(); // Strip HTML
+                const dateRaw = match[2].replace(/<[^>]*>/g, '').trim(); // Strip HTML
+
+                // Map to our standard keys
+                let eventName = '';
+                if (eventRaw.match(/Open Date/i)) eventName = 'IPO Open Date';
+                else if (eventRaw.match(/Close Date/i)) eventName = 'IPO Close Date';
+                else if (eventRaw.match(/Allotment/i)) eventName = 'Basis of Allotment';
+                else if (eventRaw.match(/Refunds/i)) eventName = 'Initiation of Refunds';
+                else if (eventRaw.match(/Credit/i)) eventName = 'Credit of Shares to Demat';
+                else if (eventRaw.match(/Listing/i)) eventName = 'IPO Listing Date';
+
+                if (eventName && dateRaw) {
+                    schedule.push({ event: eventName, date: dateRaw });
+                }
+            }
+        } catch (error) {
+            console.warn(`Detail scrape failed for ${url}`, error);
+        }
+        return schedule;
     }
 
     private static parseDiscoveryTable(html: string, type: 'Mainboard' | 'SME'): DiscoveredIPO[] {

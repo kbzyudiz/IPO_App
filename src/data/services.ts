@@ -171,9 +171,10 @@ export class IPOService {
 
         const startDate = item.startDate || 'TBA';
         const endDate = item.endDate || (startDate !== 'TBA' ? addDays(startDate, 2) : 'TBA');
-        const listingDate = item.listingDate || (endDate !== 'TBA' ? addDays(endDate, 3) : 'TBA');
+        let listingDate = item.listingDate || (endDate !== 'TBA' ? addDays(endDate, 3) : 'TBA');
 
-        const schedule = [
+
+        let schedule = [
             { event: 'IPO Open Date', date: startDate },
             { event: 'IPO Close Date', date: endDate },
             { event: 'Basis of Allotment', date: (endDate !== 'TBA' ? addDays(endDate, 1) : 'TBA') },
@@ -181,6 +182,14 @@ export class IPOService {
             { event: 'Credit of Shares to Demat', date: (endDate !== 'TBA' ? addDays(endDate, 2) : 'TBA') },
             { event: 'IPO Listing Date', date: listingDate }
         ];
+
+        // OVERRIDE with real scraped schedule if available
+        if (item.scrapedSchedule && item.scrapedSchedule.length > 0) {
+            schedule = item.scrapedSchedule;
+            // Update key dates from schedule
+            const listingEvent = schedule.find(e => e.event.includes('Listing'));
+            if (listingEvent) listingDate = listingEvent.date;
+        }
 
         return {
             id: item.id || Math.random().toString(36).substr(2, 9),
